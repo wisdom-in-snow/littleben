@@ -14,9 +14,6 @@ import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.Timer;
 import java.util.TimerTask;
-//import javax.sound.sampled.AudioInputStream;
-//import javax.sound.sampled.AudioSystem;
-//import javax.sound.sampled.Clip;
 import javax.swing.JOptionPane;
 import javax.swing.UIManager;
 
@@ -31,7 +28,6 @@ public class Main {
     static Timer timer;
     static TimerTask timertask;
     static Image enabledImage,  disabledImage;
-//    static Clip clip;
 
     static String time(int t) {
 
@@ -43,28 +39,9 @@ public class Main {
         }
     }
 
-    static void update() {
-        // disable previous timer.
-        if (timertask != null) {
-            timertask.cancel();
-        }
-        String message;
-        if (settings.enabled) {
-            message = "Alerting every " + settings.frequency + " minutes from " + time(settings.startTime) + " to " + time(settings.endTime);
-            schedule();
-        } else {
-            message = "Alerts disabled";
-            trayIcon.setToolTip(message);
-        }
-        System.out.println(message);
-        trayIcon.displayMessage(null, message, TrayIcon.MessageType.WARNING);
-        trayIcon.setImage(settings.enabled ? enabledImage : disabledImage);
-        settings.save();
-    }
-
-    static void schedule() {
-        GregorianCalendar next, start, end;
-        // calculate next alert time
+    static void reschedule()
+    {
+        GregorianCalendar next;
         next = new GregorianCalendar();
         int freq = settings.frequency;
         int mins = next.get(GregorianCalendar.MINUTE);
@@ -72,47 +49,46 @@ public class Main {
         next.set(GregorianCalendar.MINUTE, mins);
         next.set(GregorianCalendar.SECOND, 0);
         next.set(GregorianCalendar.MILLISECOND, 0);
-        // start time
-        start = (GregorianCalendar) next.clone();
-        start.set(GregorianCalendar.HOUR_OF_DAY, settings.startTime);
-        start.set(GregorianCalendar.MINUTE, 0);
-        // end time
-        end = (GregorianCalendar) next.clone();
-        end.set(GregorianCalendar.HOUR_OF_DAY, settings.endTime);
-        end.set(GregorianCalendar.MINUTE, 0);
-        // range check
-        if (start.before(end)) {
-            if (next.before(start)) {
-                next = start;
-            } else if (next.after(end)) {
-                next = start;
-                next.add(GregorianCalendar.DAY_OF_MONTH, 1);
-            }
-        } else { // end.before(start)
-            if (next.after(end) && next.before(start)) {
-                next = start;
-            }
-        }
-        // set new timer
-        timertask = new TimerTask() {
 
-            public void run() {
-                String message = new Date().toString();
-                System.out.println("Alert: " + message);
-                trayIcon.displayMessage("Alert!", message,
-                        TrayIcon.MessageType.WARNING);
-//                if (settings.sound) {
-//                    clip.start();
-//                }
-                schedule();
+        if (timer != null) timer.cancel();
+        timertask = new TimerTask()
+        {
+            public void run()
+            {
+                GregorianCalendar cal;
+                long now, start, end;
+                cal = new GregorianCalendar();
+                now = cal.getTimeInMillis();
+                // start time
+                cal.set(GregorianCalendar.HOUR_OF_DAY, settings.startTime);
+                cal.set(GregorianCalendar.MINUTE, 0);
+                cal.set(GregorianCalendar.SECOND, 0);
+                start = cal.getTimeInMillis();
+                // end time
+                cal.set(GregorianCalendar.HOUR_OF_DAY, settings.endTime);
+                end = cal.getTimeInMillis();
+
+                // compare
+                if (now >= start && (end < start || now <= end))
+                {
+                    String message = new Date().toString();
+                    System.out.println("Alert: " + message);
+                    trayIcon.displayMessage("Alert!", message,
+                            TrayIcon.MessageType.WARNING);
+                }
+                else
+                {
+                    System.err.println("Skipping alert");
+                }
             }
         };
         timer = new Timer();
-        timer.schedule(timertask, next.getTime(), freq * 60 * 1000);
+        timer.scheduleAtFixedRate(timertask, next.getTime(), freq * 60 * 1000);
         String tooltip = "Next alert at " + next.getTime().toString();
         System.out.println(tooltip);
         trayIcon.setToolTip(tooltip);
     }
+
     static ActionListener listener = new ActionListener() {
 
         public void actionPerformed(ActionEvent e) {
@@ -122,26 +98,21 @@ public class Main {
                 return;
             } else if (action.equals("Every hour")) {
                 settings.frequency = 60;
-                settings.enabled = true;
-            } else if (action.equals("Every 45 minutes")) {
-                settings.frequency = 45;
-                settings.enabled = true;
+                reschedule();
             } else if (action.equals("Every half an hour")) {
                 settings.frequency = 30;
-                settings.enabled = true;
+                reschedule();
             } else if (action.equals("Every 15 minutes")) {
                 settings.frequency = 15;
-                settings.enabled = true;
+                reschedule();
             } else if (action.equals("Every 2 minutes")) {
                 settings.frequency = 2;
-                settings.enabled = true;
-            } else if (action.equals("Never")) {
-                settings.enabled = false;
+                reschedule();
             } else if (action.equals("All day")) {
                 settings.startTime = 0;
                 settings.endTime = 24;
             } else if (action.equals("Morning")) {
-                settings.startTime = 0;
+                settings.startTime = 6;
                 settings.endTime = 12;
             } else if (action.equals("Afternoon")) {
                 settings.startTime = 12;
@@ -149,10 +120,6 @@ public class Main {
             } else if (action.equals("Overnight")) {
                 settings.startTime = 18;
                 settings.endTime = 6;
-//            } else if (action.equals("Enabled")) {
-//                settings.sound = true;
-//            } else if (action.equals("Disabled")) {
-//                settings.sound = false;
             } else if (action.equals("Exit")) {
                 System.exit(0);
             } else {
@@ -160,7 +127,7 @@ public class Main {
                         TrayIcon.MessageType.ERROR);
                 return;
             }
-            update();
+            //update();
         }
     };
 
@@ -178,12 +145,6 @@ public class Main {
             // init images & sound
             URL url = Main.class.getResource("enabled.jpg");
             enabledImage = Toolkit.getDefaultToolkit().getImage(url);
-            url = Main.class.getResource("disabled.jpg");
-            disabledImage = Toolkit.getDefaultToolkit().getImage(url);
-//            url = Main.class.getResource("toll.wav");
-//            AudioInputStream audioIn = AudioSystem.getAudioInputStream(url);
-//            clip = AudioSystem.getClip();
-//            clip.open(audioIn);
             // Popup menu
             PopupMenu popup;
             Menu menu;
@@ -203,9 +164,9 @@ public class Main {
             item = new MenuItem("Every 15 minutes");
             item.addActionListener(listener);
             menu.add(item);
-//            item = new MenuItem("Every 2 minutes");
-//            item.addActionListener(listener);
-//            menu.add(item);
+            item = new MenuItem("Every 2 minutes");
+            item.addActionListener(listener);
+            menu.add(item);
             item = new MenuItem("Never");
             item.addActionListener(listener);
             menu.add(item);
@@ -225,27 +186,17 @@ public class Main {
             item.addActionListener(listener);
             menu.add(item);
             popup.add(menu);
-//            // Sound
-//            menu = new Menu("Sound");
-//            item = new MenuItem("Enabled");
-//            item.addActionListener(listener);
-//            menu.add(item);
-//            item = new MenuItem("Disabled");
-//            item.addActionListener(listener);
-//            menu.add(item);
-//            popup.add(menu);
             popup.addSeparator();
             item = new MenuItem("Exit");
             item.addActionListener(listener);
             popup.add(item);
             // setup tray
-            trayIcon = new TrayIcon(settings.enabled ? enabledImage : disabledImage,
-                    "disabled...", popup);
+            trayIcon = new TrayIcon(enabledImage, "...", popup);
             trayIcon.setImageAutoSize(true);
             trayIcon.addActionListener(listener);
             SystemTray tray = SystemTray.getSystemTray();
             tray.add(trayIcon);
-            update();
+            reschedule();
         }
     }
 }
